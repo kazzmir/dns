@@ -18,3 +18,8 @@ Observations:
   * back to putting ; at the end of lines. I have become pretty used to leaving them off since I do a lot of programming in python, go, and swift. I dislike ;
   * the rust compiler complains if functions are not named using snake case, a bit surprising 
   * I successfully got a UDP server up and running without too much pain. So far so good!
+  * Testing the server is easy:
+
+$ echo hi > /dev/udp/127.0.0.1/5553
+
+Apparently /dev/udp is a bash thing, its not a real entry in the filesystem.
