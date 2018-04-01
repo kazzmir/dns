@@ -11,3 +11,10 @@ A client sends a UDP packet to the server that contains a query, which consists 
 My goals for the very beginning of the project are:
   * get a working rust environment
   * open UDP port 53, be able to parse the input
+
+Observations:
+  * rust naming conventions are annoying to me. 'fn' for functions, files end with '.rs'. Laziness is not a virtue.
+  * googling for 'rust open a port' shows me a bunch of stuff for some game called 'rust'. Hopefully searching for the rust language related things won't become too annoying.
+  * back to putting ; at the end of lines. I have become pretty used to leaving them off since I do a lot of programming in python, go, and swift. I dislike ;
+  * the rust compiler complains if functions are not named using snake case, a bit surprising 
+  * I successfully got a UDP server up and running without too much pain. So far so good!
