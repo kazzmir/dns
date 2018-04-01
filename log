@@ -1,0 +1,13 @@
+This is a project to implement a DNS server and learn rust at the same time. I know very little about rust, so I expect quite a bit of pain in the beginning of the project. I know a bit about DNS, but hopefully by implementing a server I will learn much more. The things I currently know about DNS are:
+
+ * servers opens a UDP socket on port 53
+ * IPV4 queries use the A record
+ * IPV6 queries use the AAAA record
+ * email (smtp?) queries use the MX recordd
+ * and there are some other records, like NS and CNAME, that I'm not exactly sure what they do
+
+A client sends a UDP packet to the server that contains a query, which consists of a hostname to resolve and probably other information. If the DNS server doesn't have the information on hand then it will send the query to an upstream provider, either the router on the local network or to something more authoritative like an ISP or one of the many public servers such as Google's 8.8.8.8.
+
+My goals for the very beginning of the project are:
+  * get a working rust environment
+  * open UDP port 53, be able to parse the input
