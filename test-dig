@@ -1,0 +1,11 @@
+#!/bin/sh
+
+if [ "x$1" = "x" ]; then
+  echo "Give a hostname"
+  exit 1
+fi
+
+host=$1
+port=5553
+
+dig +tries=1 +time=1 @127.0.0.1 -p $port $host
