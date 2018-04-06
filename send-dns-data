@@ -1,0 +1,15 @@
+#!/bin/bash
+
+if [ "x$1" = "x" ]; then
+  echo "Give a file with udp data in it"
+  exit 1
+fi
+
+if [ ! -f $1 ]; then
+  echo "Could not find $1"
+  exit 1
+fi
+
+port=5553
+
+cat $1 > /dev/udp/127.0.0.1/$port
