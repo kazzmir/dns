@@ -1,6 +1,9 @@
 use std::net::UdpSocket;
 use std::str;
 
+// extern crate bytes
+// use bytes::{BytesMut, BufMut};
+
 /* DNS Format:
  * Identity (2 bytes)
  * Query/Response (1 bit)
@@ -33,6 +36,21 @@ struct DNSHeader {
     additional_record_count: u16,
 }
 
+fn push_be_16(packet: &mut std::vec::Vec<u8>, value: u16){
+    // let big = u16::to_be(value);
+    let parts = [(value >> 8) as u8, (value & 0xff) as u8];
+    packet.push(parts[0]);
+    packet.push(parts[1]);
+}
+
+fn to_bit(x:bool) -> u8 {
+    if x {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 impl DNSHeader {
     fn is_question(&self) -> bool {
         return self.question_response == false;
@@ -41,10 +59,29 @@ impl DNSHeader {
     fn is_answer(&self) -> bool {
         return ! self.is_question();
     }
+
+    fn construct_data_bits(&self) -> u16 {
+        return ((to_bit(self.question_response) as u16) << 15) |
+               ((self.opcode as u16) << (16-1-4)) |
+               ((to_bit(self.authoritative_answer) as u16) << (16-1-4-1)) |
+               ((to_bit(self.truncation) as u16) << (16-1-4-1-1)) |
+               ((to_bit(self.recursion_desired) as u16) << (16-1-4-1-1-1)) |
+               ((to_bit(self.recursion_available) as u16) << (16-1-4-1-1-1-1)) |
+               (self.response_code as u16);
+    }
+
+    fn serialize(&self, packet: &mut std::vec::Vec<u8>){
+        push_be_16(packet, self.identity);
+        push_be_16(packet, self.construct_data_bits());
+        push_be_16(packet, self.question_count);
+        push_be_16(packet, self.answer_record);
+        push_be_16(packet, self.authority_record_count);
+        push_be_16(packet, self.additional_record_count);
+    }
 }
 
 #[derive(Debug)]
-enum QuestionType {
+enum DNSType {
     A, /* IPV4 */
     AAAA, /* IPV6 */
     AFSDB,
@@ -86,146 +123,159 @@ enum QuestionType {
     URI
 }
 
-impl std::fmt::Display for QuestionType {
+impl DNSType {
+    fn value(&self) -> u16 {
+        match self {
+            &DNSType::A => {
+                return 0;
+            }
+            _ => {
+                return 0;
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for DNSType {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         return write!(formatter, "{:?}", self);
     }
 }
 
-fn convert_question_type(value: u16) -> QuestionType {
+fn convert_question_type(value: u16) -> DNSType {
     match value {
         /* rust parser bug requires us to wrap return in {} */
         0x0 => {
-            return QuestionType::A;
+            return DNSType::A;
         }
         28 => {
-            return QuestionType::AAAA;
+            return DNSType::AAAA;
         }
         18 => {
-            return QuestionType::AFSDB;
+            return DNSType::AFSDB;
         }
         18 => {
-            return QuestionType::AFSDB;
+            return DNSType::AFSDB;
         }
         42 => {
-            return QuestionType::APL;
+            return DNSType::APL;
         }
         257 => {
-            return QuestionType::CAA;
+            return DNSType::CAA;
         }
         60 => {
-            return QuestionType::CDNSKEY;
+            return DNSType::CDNSKEY;
         }
         59 => {
-            return QuestionType::CDS;
+            return DNSType::CDS;
         }
         37 => {
-            return QuestionType::CERT;
+            return DNSType::CERT;
         }
         5 => {
-            return QuestionType::CNAME;
+            return DNSType::CNAME;
         }
         49 => {
-            return QuestionType::DHCID;
+            return DNSType::DHCID;
         }
         32769 => {
-            return QuestionType::DLV;
+            return DNSType::DLV;
         }
         39 => {
-            return QuestionType::DNAME;
+            return DNSType::DNAME;
         }
         48 => {
-            return QuestionType::DNSKEY;
+            return DNSType::DNSKEY;
         }
         43 => {
-            return QuestionType::DS;
+            return DNSType::DS;
         }
         55 => {
-            return QuestionType::HIP;
+            return DNSType::HIP;
         }
         45 => {
-            return QuestionType::IPSECKEY;
+            return DNSType::IPSECKEY;
         }
         25 => {
-            return QuestionType::KEY;
+            return DNSType::KEY;
         }
         36 => {
-            return QuestionType::KX;
+            return DNSType::KX;
         }
         29 => {
-            return QuestionType::LOC;
+            return DNSType::LOC;
         }
         15 => {
-            return QuestionType::MX;
+            return DNSType::MX;
         }
         35 => {
-            return QuestionType::NAPTR;
+            return DNSType::NAPTR;
         }
         2 => {
-            return QuestionType::NS;
+            return DNSType::NS;
         }
         47 => {
-            return QuestionType::NSEC;
+            return DNSType::NSEC;
         }
         50 => {
-            return QuestionType::NSEC3;
+            return DNSType::NSEC3;
         }
         51 => {
-            return QuestionType::NSEC3PARAM;
+            return DNSType::NSEC3PARAM;
         }
         61 => {
-            return QuestionType::OPENPGPKEY;
+            return DNSType::OPENPGPKEY;
         }
         12 => {
-            return QuestionType::PTR;
+            return DNSType::PTR;
         }
         46 => {
-            return QuestionType::RRSIG;
+            return DNSType::RRSIG;
         }
         17 => {
-            return QuestionType::RP;
+            return DNSType::RP;
         }
         24 => {
-            return QuestionType::SIG;
+            return DNSType::SIG;
         }
         6 => {
-            return QuestionType::SOA;
+            return DNSType::SOA;
         }
         33 => {
-            return QuestionType::SRV;
+            return DNSType::SRV;
         }
         44 => {
-            return QuestionType::SSHFP;
+            return DNSType::SSHFP;
         }
         32768 => {
-            return QuestionType::TA;
+            return DNSType::TA;
         }
         249 => {
-            return QuestionType::TKEY;
+            return DNSType::TKEY;
         }
         52 => {
-            return QuestionType::TLSA;
+            return DNSType::TLSA;
         }
         250  => {
-            return QuestionType::TSIG;
+            return DNSType::TSIG;
         }
         16 => {
-            return QuestionType::TXT;
+            return DNSType::TXT;
         }
         256 => {
-            return QuestionType::URI;
+            return DNSType::URI;
         }
 
         /* FIXME: support more qtypes */
         _ => {
-            return QuestionType::A;
+            return DNSType::A;
         }
     }
 }
 
 struct DNSQuestion {
     qname: String,
-    qtype: QuestionType,
+    qtype: DNSType,
     qclass: u16,
 }
 
@@ -239,9 +289,13 @@ struct ByteReader<'a>{
 }
 
 impl<'a> ByteReader<'a>{
-    fn read_le_16(&mut self) -> u16 {
-        let value:u16 = u16::from_le(((self.buffer[self.index] as u16) << 8) |
-                                       self.buffer[self.index + 1] as u16);
+    fn read_be_16(&mut self) -> u16 {
+        /*
+        let value:u16 = u16::from_be(((self.buffer[self.index + 1] as u16) << 8) |
+                                       self.buffer[self.index] as u16);
+                                       */
+        let value:u16 = ((self.buffer[self.index] as u16) << 8) |
+                         self.buffer[self.index + 1] as u16;
         self.index += 2;
         return value;
     }
@@ -288,12 +342,12 @@ fn dns_header_get_response_code(bits: u16) -> u8 {
 fn parse_dns_header(buffer: &[u8]) -> DNSHeader {
     let mut reader = make_byte_reader(buffer);
 
-    let identity:u16 = reader.read_le_16();
-    let data_bits:u16 = reader.read_le_16();
-    let question_count:u16 = reader.read_le_16();
-    let answer_record:u16 = reader.read_le_16();
-    let authority_record_count:u16 = reader.read_le_16();
-    let additional_record_count:u16 = reader.read_le_16();
+    let identity:u16 = reader.read_be_16();
+    let data_bits:u16 = reader.read_be_16();
+    let question_count:u16 = reader.read_be_16();
+    let answer_record:u16 = reader.read_be_16();
+    let authority_record_count:u16 = reader.read_be_16();
+    let additional_record_count:u16 = reader.read_be_16();
 
     println!("Identity is {identity}", identity=identity);
     println!("Question count: {question}", question=question_count);
@@ -363,8 +417,8 @@ fn parse_dns_question(buffer: &[u8]) -> DNSQuestion {
     index += 1;
 
     let mut reader = make_byte_reader(&buffer[index..(index+4)]);
-    let qtype = reader.read_le_16();
-    let qclass = reader.read_le_16();
+    let qtype = reader.read_be_16();
+    let qclass = reader.read_be_16();
 
     return DNSQuestion{
         qname: host_out,
@@ -373,10 +427,48 @@ fn parse_dns_question(buffer: &[u8]) -> DNSQuestion {
     };
 }
 
+type IPAddress = [u8; 4];
+
 struct DNSAnswer {
     header: DNSHeader,
+    name: String,
+    qtype: DNSType,
+    qclass: u16,
+    time_to_live: u16, /* in seconds */
+    response: IPAddress /* only works for A queries right now */
 }
 
+impl DNSAnswer {
+    fn serialize(&self, packet: &mut std::vec::Vec<u8>){
+        self.header.serialize(packet);
+        /* question section */
+        packet.push("google".chars().count() as u8);
+        packet.extend_from_slice(&"google".as_bytes());
+        packet.push("com".chars().count() as u8);
+        packet.extend_from_slice(&"com".as_bytes());
+        packet.push(0);
+        push_be_16(packet, self.qtype.value());
+        push_be_16(packet, self.qclass);
+
+
+        /* answer section */
+        packet.push("google".chars().count() as u8);
+        packet.extend_from_slice(&"google".as_bytes());
+        packet.push("com".chars().count() as u8);
+        packet.extend_from_slice(&"com".as_bytes());
+        packet.push(0);
+        push_be_16(packet, self.qtype.value());
+        push_be_16(packet, self.qclass);
+        push_be_16(packet, self.time_to_live);
+        push_be_16(packet, 4);
+        packet.push(self.response[0]);
+        packet.push(self.response[1]);
+        packet.push(self.response[2]);
+        packet.push(self.response[3]);
+    }
+}
+
+/* FIXME: convert to enum */
 const Success:u8 = 0;
 const FormatError:u8 = 1;
 const ServerFailure:u8 = 2;
@@ -384,8 +476,26 @@ const NameError:u8 = 3;
 const NotImplemented:u8 = 4;
 const Refused:u8 = 5;
 
+fn make_ip(a: u8, b: u8, c: u8, d: u8) -> IPAddress {
+    return [a, b, c, d];
+}
+
+fn ip_to_string(ip:IPAddress) -> String {
+    return format!("{a}.{b}.{c}.{d}",
+                   a = ip[0],
+                   b = ip[1],
+                   c = ip[2],
+                   d = ip[3]);
+}
+
 fn construct_dns_answer(question_header: DNSHeader, question: DNSQuestion) -> DNSAnswer {
+    let ip = make_ip(127, 0, 0, 1);
     return DNSAnswer{
+        name: question.qname,
+        qtype: question.qtype,
+        qclass: question.qclass,
+        time_to_live: 100,
+        response: ip,
         header: DNSHeader{
             identity: question_header.identity,
             question_response: true,
@@ -395,12 +505,20 @@ fn construct_dns_answer(question_header: DNSHeader, question: DNSQuestion) -> DN
             recursion_desired: false,
             recursion_available: false,
             response_code: Success,
-            question_count: 0,
+            question_count: 1,
             answer_record: 1,
             authority_record_count: 0,
             additional_record_count: 0
         }
     };
+}
+
+fn dns_send_response(socket: &UdpSocket, source: &std::net::SocketAddr, answer: &DNSAnswer){
+    let mut packet = std::vec::Vec::with_capacity(128);
+
+    answer.serialize(&mut packet);
+
+    let _ = socket.send_to(&packet, &source);
 }
 
 fn main(){
@@ -416,4 +534,7 @@ fn main(){
   println!("Question header {question}", question=header.is_question());
   println!("Request for '{host}' type {qtype}", host=question.qname, qtype=question.qtype);
   let answer = construct_dns_answer(header, question);
+  println!("Answer for '{host}' is {ip}", host=answer.name, ip=ip_to_string(answer.response));
+
+  dns_send_response(&socket, &source, &answer)
 }
