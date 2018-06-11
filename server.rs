@@ -43,6 +43,17 @@ fn push_be_16(packet: &mut std::vec::Vec<u8>, value: u16){
     packet.push(parts[1]);
 }
 
+fn push_be_32(packet: &mut std::vec::Vec<u8>, value: u32){
+    let parts = [(value >> 24) as u8,
+                 ((value >> 16) & 0xff) as u8,
+                 ((value >> 8) & 0xff) as u8,
+                 ((value >> 0) & 0xff) as u8];
+    packet.push(parts[0]);
+    packet.push(parts[1]);
+    packet.push(parts[2]);
+    packet.push(parts[3]);
+}
+
 fn to_bit(x:bool) -> u8 {
     if x {
         return 1;
@@ -62,12 +73,12 @@ impl DNSHeader {
 
     fn construct_data_bits(&self) -> u16 {
         return ((to_bit(self.question_response) as u16) << 15) |
-               ((self.opcode as u16) << (16-1-4)) |
-               ((to_bit(self.authoritative_answer) as u16) << (16-1-4-1)) |
-               ((to_bit(self.truncation) as u16) << (16-1-4-1-1)) |
-               ((to_bit(self.recursion_desired) as u16) << (16-1-4-1-1-1)) |
-               ((to_bit(self.recursion_available) as u16) << (16-1-4-1-1-1-1)) |
-               (self.response_code as u16);
+               ((self.opcode as u16) << 11) |
+               ((to_bit(self.authoritative_answer) as u16) << 10) |
+               ((to_bit(self.truncation) as u16) << 9) |
+               ((to_bit(self.recursion_desired) as u16) << 8) |
+               ((to_bit(self.recursion_available) as u16) << 7) |
+               ((self.response_code as u16) << 0);
     }
 
     fn serialize(&self, packet: &mut std::vec::Vec<u8>){
@@ -127,7 +138,7 @@ impl DNSType {
     fn value(&self) -> u16 {
         match self {
             &DNSType::A => {
-                return 0;
+                return 1;
             }
             _ => {
                 return 0;
@@ -309,23 +320,23 @@ fn make_byte_reader(buffer: &[u8]) -> ByteReader {
 }
 
 fn dns_header_get_question_response(bits: u16) -> bool {
-    return (bits & 0b1) == 0b1;
+    return ((bits >> 15) & 0b1) == 0b1;
 }
 
 fn dns_header_get_opcode(bits: u16) -> u8 {
-    return ((bits >> 1) & 0b1111) as u8;
+    return ((bits >> 11) & 0b1111) as u8;
 }
 
 fn dns_header_get_authoritative_answer(bits: u16) -> bool {
-    return ((bits >> 4) & 0b1) == 0b1;
+    return ((bits >> 10) & 0b1) == 0b1;
 }
 
 fn dns_header_get_truncation(bits: u16) -> bool {
-    return ((bits >> 5) & 0b1) == 0b1;
+    return ((bits >> 9) & 0b1) == 0b1;
 }
 
 fn dns_header_get_recursion_desired(bits: u16) -> bool {
-    return ((bits >> 6) & 0b1) == 0b1;
+    return ((bits >> 8) & 0b1) == 0b1;
 }
 
 fn dns_header_get_recursion_available(bits: u16) -> bool {
@@ -333,7 +344,7 @@ fn dns_header_get_recursion_available(bits: u16) -> bool {
 }
 
 fn dns_header_get_response_code(bits: u16) -> u8 {
-    return ((bits >> 11) & 0b1111) as u8;
+    return ((bits >> 0) & 0b1111) as u8;
 }
 
 /* FIXME: the type of buffer used to be [u8; 12] but it seems we have to convert
@@ -434,7 +445,7 @@ struct DNSAnswer {
     name: String,
     qtype: DNSType,
     qclass: u16,
-    time_to_live: u16, /* in seconds */
+    time_to_live: u32, /* in seconds */
     response: IPAddress /* only works for A queries right now */
 }
 
@@ -452,14 +463,18 @@ impl DNSAnswer {
 
 
         /* answer section */
+        push_be_16(packet, ((0b11 as u16) << 14) | 12);
+        /*
         packet.push("google".chars().count() as u8);
         packet.extend_from_slice(&"google".as_bytes());
         packet.push("com".chars().count() as u8);
         packet.extend_from_slice(&"com".as_bytes());
         packet.push(0);
+        */
         push_be_16(packet, self.qtype.value());
         push_be_16(packet, self.qclass);
-        push_be_16(packet, self.time_to_live);
+        push_be_32(packet, self.time_to_live);
+        // push_be_16(packet, self.time_to_live);
         push_be_16(packet, 4);
         packet.push(self.response[0]);
         packet.push(self.response[1]);
@@ -502,8 +517,8 @@ fn construct_dns_answer(question_header: DNSHeader, question: DNSQuestion) -> DN
             opcode: 0,
             authoritative_answer: false,
             truncation: false,
-            recursion_desired: false,
-            recursion_available: false,
+            recursion_desired: question_header.recursion_desired,
+            recursion_available: true,
             response_code: Success,
             question_count: 1,
             answer_record: 1,
