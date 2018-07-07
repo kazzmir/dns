@@ -536,10 +536,7 @@ fn dns_send_response(socket: &UdpSocket, source: &std::net::SocketAddr, answer: 
     let _ = socket.send_to(&packet, &source);
 }
 
-fn main(){
-  let port = 5553;
-  let socket = UdpSocket::bind(format!("127.0.0.1:{port}", port=port)).unwrap();
-  println!("Running DNS server on port {port}", port=port);
+fn serve(socket: &UdpSocket){
   let mut buffer = [0; 4096];
   let (amount, source) = socket.recv_from(&mut buffer).unwrap();
   println!("Received {bytes} {source}", bytes=amount, source=source);
@@ -552,4 +549,13 @@ fn main(){
   println!("Answer for '{host}' is {ip}", host=answer.name, ip=ip_to_string(answer.response));
 
   dns_send_response(&socket, &source, &answer)
+}
+
+fn main(){
+  let port = 5553;
+  let socket = UdpSocket::bind(format!("127.0.0.1:{port}", port=port)).unwrap();
+  println!("Running DNS server on port {port}", port=port);
+  while true {
+    serve(&socket)
+  }
 }
